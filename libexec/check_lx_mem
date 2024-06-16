@@ -1,0 +1,92 @@
+#!/usr/bin/perl
+# nagios: -epn
+# Dont use the embedded apache perl....
+# Author : evarin
+# Date : 20 Oct 2012
+# check_lx_mem IP COMMUNITY warnlevel criticallevel
+sub print_usage 
+{
+print "
+############################## check_winmem ###############################
+# Version : 1.0 
+# Date : Apr 11 2006  
+# Author  : Emmanuel Varin 
+# Thanks to Benjamin Jakubowski for the idea to walk through snmp
+# Licence : GPL - http://www.fsf.org/licenses/gpl.txt 
+#######################################################################\n";
+	print "check_lx_mem IP COMMUNITY warnlevel criticallevel\n";
+	print"\ncheck_lx_mem -v for version info\n";
+	
+}
+$PROGNAME = "check_lx_mem";
+if (@ARGV[0] eq "-v") {
+	print_usage();
+	exit 0;
+
+}
+if  ( @ARGV[0] eq "" || @ARGV[1] eq "" || @ARGV[2] eq "" || @ARGV[3] eq "")
+{
+    print_usage();
+    exit 0;
+}
+$IP=@ARGV[0];
+$COMMUNITY=@ARGV[1];
+$Service=@ARGV[2];
+$LW=@ARGV[4];
+$resultat =`snmpwalk -v 1 -c $COMMUNITY $IP  .1.3.6.1.4.1.2021.4.6.0 `;
+$fullsize1=0;
+$usedsize1=0;
+$unitused="";
+$unitfull="";
+$percuse=0;
+if ( $resultat ) {
+		$resstring= $resultat;
+		@res=split(/\n/,$resstring);
+		foreach $resu (@res) {
+			$resstr = $resu;
+			if ($resu = ~/hrSWRunPerfMem/) {
+				@outs = split(/ /, $resstr);
+				$usedsize1 = $usedsize1 + $outs[3];
+				chomp($outs[4]);
+				$unitused=$outs[4];
+			}
+		}
+		$resultat2 =`snmpwalk -v 1 -c $COMMUNITY $IP  .1.3.6.1.4.1.2021.4.5.0 `;
+		$resstr=$resultat2;
+		if ($resu = ~/hrMemorySize/) {
+			@outs = split(/ /, $resstr);
+			$fullsize1 = $outs[3];
+			chomp($outs[4]);
+			$unitfull=$outs[4];
+		}
+		if ($fullsize1 > 0 && $usedsize1 > 0) {
+			$percuse = $usedsize1 * 100 / $fullsize1;
+			$percuse = sprintf("%.2f",$percuse);
+			if ($percuse <= @ARGV[3]) {
+				print "CRITICAL MEM: Free $percuse perc - $usedsize1 $ unitused of $fullsize1 $unitfull -w $ARGV[2] -c $ARGV[3]\n";
+				exit 2;
+			}
+			if ($percuse <= @ARGV[2]) {
+				print "WARN MEM: Free $percuse perc - $usedsize1 $ unitused of $fullsize1 $unitfull -w $ARGV[2] -c $ARGV[3]\n";
+				exit 1;
+			}
+
+
+			print "OK MEM: Free $percuse % - $usedsize1 $ unitused of $fullsize1 $unitfull \n";
+			exit 0;
+			
+
+
+
+		}
+			
+		
+	print "Critical  : Response unknown\n";
+        exit 2;
+}
+else
+{
+	print "Critical  : no response\n";
+        exit 2;
+}
+

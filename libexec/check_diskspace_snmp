@@ -1,0 +1,111 @@
+#!/bin/sh
+# 
+# check_diskspace.sh via SNMP
+# 
+# Author        : Thomas Jens Lauritsen <tjl@topdanmark.dk> 
+# Date          : 14 Jan 2004
+# Last edited   : 19 may 2005
+# Description	: Script that checks for free disk space in a windows 2000 server with SNMP.
+# Req.          : The script uses the bc - calulator (Installed on most *nix's)
+# Advice        : Run the script for every 60 min - to keep the load down on the cpu.
+# Nagios        : In the services.cfg. Exampel: check_diskspace.sh!public!1!2!100!1000!
+# Info          : You have to change Oid for your system - see below (num1 and num2).
+# INFO		: DONT USE THIS SCRIPT BEFORE YOU CHECK IT FOR ANY FAULTS - I WILL 
+# INFO          : NOT BE RESPONSIBLE FOR ANYTHING OR ANY RESULTS OF THIS SCRIPT. IT IS 
+# INFO          : YOUR OWN FAULT OR RISK - IF YOU USE IT.
+#
+#                                                          crit  warn         
+# ./check_diskspace.sh <ip-address> <public> <Vol.Letter> <100> <1000>
+#
+# Verify that there is an input
+# ------------------------------
+#
+if [ -z "$1" ]; then
+echo "usage  : check_diskspace.sh <hostname> <snmp-community> <Vol.Letter> <crit-level> <warn-level>"
+# echo "usage  : check_diskspace.sh <hostname> <snmp-community> <num1> <num2> <crit-num3> <warn-num4>"
+# echo "example: check_diskspace.sh 192.168.1.1 public 2 2 100 1000"
+echo "example: check_diskspace.sh 192.168.1.1 public E: 100 1000"
+echo
+exit
+fi
+#
+
+# Variables
+# ---------
+PROGPATH=`echo $0 | /bin/sed -e 's,[\\/][^\\/][^\\/]*$,,'`
+. $PROGPATH/utils.sh
+SERVER=$1                    # Example: 10.0.0.3
+SNMPCOMUNITY=$2              # Example: public
+LDISK=$3                   # A,C,D,E,F,....Logical disk
+NUM1=$4                      # Example: "100"   (Mb) CRITICAL 
+NUM2=$5                      # Example: "1000"  (Mb) WARNING
+
+
+# CHECK HOST
+#snmpget -v 1 $SERVER -c public .system.sysUpTime.0
+
+# GET STORAGE SIZE & USED VALUE (CHANGE THE OID's TO FIT YOUR DESTINATION OS)
+
+# Storage description (Get logical disk name E:\? )
+VOLNUM=`/usr/bin/snmpwalk -v1 -c $SNMPCOMUNITY $SERVER .iso.org.dod.internet.mgmt.mib-2.host.hrStorage.hrStorageTable.hrStorageEntry.hrStorageDescr -t 5 |grep $LDISK |awk ' {print $1 }'|cut -d "." -f 2-3`
+
+#echo $LDISK LDISK
+#echo $VOLNUM VOLNUM
+
+# Used disk value
+USED=`/usr/bin/snmpget -v1 -c $SNMPCOMUNITY $SERVER  .iso.org.dod.internet.mgmt.mib-2.host.hrStorage.hrStorageTable.hrStorageEntry.hrStorageUsed.$VOLNUM -t 5| awk '{ print $4  }'`
+#echo $USED
+
+
+# GET STORAGE SIZE AND USED VALUE (CHANGE THE OID's TO FIT YOUR DESTINATION OS)
+# Storage value
+SIZE=`/usr/bin/snmpget -v1 -c $SNMPCOMUNITY $SERVER .iso.org.dod.internet.mgmt.mib-2.host.hrStorage.hrStorageTable.hrStorageEntry.hrStorageSize.$VOLNUM -t 5| awk '{ print $4  }'`
+#echo $SIZE
+
+
+# GET BYTE VALUE FOR DISK SYSTEM (512;1024;2048;4096)
+VALUE=`/usr/bin/snmpget -v1 -c $SNMPCOMUNITY $SERVER .iso.org.dod.internet.mgmt.mib-2.host.hrStorage.hrStorageTable.hrStorageEntry.hrStorageAllocationUnits.$VOLNUM -t 5 |awk '{ print $4  }'`
+
+# CALUCULATE FREE DISK SPACE
+C=$((SIZE-USED))
+
+#echo $C*$VALUE/1024/1024 | bc >>/usr/local/nagios/libexec/$SERVER-$NUM1.txt
+RESULT=`echo $C*$VALUE/1024/1024 | bc`
+#echo $RESULT
+
+#if [ "$3" == "2" ] ; then
+#      DISKVOL=C
+#      echo "$DISKVOL"
+#      
+#elif [ "$3" == "3" ] ; then
+#      DISKVOL=D
+#      echo "$DISKVOL"
+#
+#elif [ "$3" == "4" ] ; then
+#      DISKVOL=E
+#      echo "$DISKVOL"
+#      exit
+#fi	    
+
+#echo $LDISK LDISK
+#echo DISK OK - $E MB
+
+# TELL NAGIOS WHAT WE COLLECTED - AND GIVE IT A STATE 
+if [ "$RESULT" -le "$NUM1" ] ; then 
+      $ECHO "DISKSPACE - CRITICAL "$LDISK" $RESULT MB\n"
+      exitstatus=$STATE_CRITICAL 
+
+elif [ "$RESULT" -le "$NUM2" ] ; then 
+      $ECHO "DISKSPACE - WARNING "$LDISK" $RESULT MB\n"
+      exitstatus=$STATE_WARNING 
+
+elif [ "$RESULT" -ge "$NUM2" ] ; then 
+     $ECHO "DISKSPACE - OK "$LDISK" $RESULT MB\n"
+      exitstatus=$STATE_OK 
+
+else 
+      $ECHO "DISKSPACE - UNKNOWN "$LDISK" $RESULT MB\n"
+      exitstatus=$STATE_UNKNOWN
+fi
+
+exit $exitstatus

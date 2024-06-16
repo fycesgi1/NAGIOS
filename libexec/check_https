@@ -1,0 +1,110 @@
+#!/bin/bash
+wget='/usr/bin/wget --no-proxy --no-check-certificate --output-document=/tmp/tmp_html.$$ -S'
+add_uri='https://'
+end_uri=''
+check=''
+vhost=''
+PORT=''
+user=''
+pass=''
+
+#deal with arguments
+if [ $# -eq 0 ]; 
+then
+	printf "Usage:\n$0 -H <vhost> | -I <IP-address> [-u <uri>] [-p <port>]\n[-e <expect>] [-l <login>] [-m <pass>]\n"
+	exit 1
+fi
+
+argBackup=$@
+
+while (( "$#" )); 
+do
+	case "$1" in
+	-I)
+		shift
+		host=${1}
+		;;
+	-p)
+		shift
+		PORT=:${1}
+		;;
+	-u)
+		shift
+		end_uri=${1}
+		;;
+	-e)
+		shift
+		check=${1}
+		;;
+        -l)
+                shift
+                login=${1}
+                ;;
+        -m)
+                shift
+                pass=${1}
+                ;;
+	-H)
+		shift
+		vhost="--header 'Host: ${1}'"
+	esac
+shift
+done
+
+
+#allow for "old" style usage as well, if host is not set 
+if [ -z $host ]
+then
+
+	IFS=" ";
+	argArray=($argBackup);
+	for ((i=0; i<${#argArray[@]}; ++i));
+ 	do
+		case "$i" in
+		0)
+			host=${argArray[$i]}
+			;;
+		1)
+			PORT=:${argArray[$i]}
+			;;
+		2)
+			end_uri=${argArray[$i]}
+			;;
+		esac
+	done
+fi
+
+#execute wget
+runCmd="$wget --http-user='${login}' --http-password=${pass} ${vhost} ${add_uri}${host}${PORT}${end_uri}"
+eval ${runCmd} 2> /tmp/tmp_rep.$$
+getStat=$?
+
+#check to see if we recieved a 404 (which causes wget to exit with a non 0 return code)
+grep "HTTP/1.1 404" /tmp/tmp_rep.$$ > /dev/null 2>&1
+grepStat=$?
+
+if [ $getStat -eq 0 ] || [ $grepStat -eq 0 ] 
+then
+	if [ -z $check ]
+	then
+		echo "HTTPS OK:" `cat /tmp/tmp_rep.$$ | grep "HTTP/1"  | head -5`
+	else
+		retval=`cat /tmp/tmp_rep.$$ | grep "HTTP/1" | head -1 | egrep $check`
+		if [ $? -ne 0 ]
+		then
+			echo "HTTPS CRITICAL - Invalid HTTP response received from host: `cat /tmp/tmp_rep.$$ | grep "HTTP/1" | head -1`"
+			#rm /tmp/tmp_rep.$$
+		        #rm /tmp/tmp_html.$$
+			exit 3		
+		fi
+		echo "HTTP OK:$retval"
+	fi
+	rm /tmp/tmp_rep.$$
+	rm /tmp/tmp_html.$$
+	exit 0
+else
+	cat /tmp/tmp_rep.$$ | grep "HTTP/1" || echo 'Connection refused by host'
+	rm /tmp/tmp_rep.$$
+	rm /tmp/tmp_html.$$
+	exit 2
+fi;

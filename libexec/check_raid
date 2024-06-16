@@ -1,0 +1,49 @@
+#!/bin/bash
+################################################################
+# Written by DENIS Mikael    #
+# Created: 2017-06-26  (version 42)                          #
+###############################################################
+STATUS_OK="0"
+STATUS_WARNING="1"
+STATUS_CRITICAL="2"
+STATUS_UNKNOWN="3"
+
+STATUS=`cat /tmp/checkRaidStatus_$1.log`
+cat /tmp/checkRaidStatus_$1.log > /dev/null
+if [ $? != 0 ]; then
+ exit 
+fi
+
+SERVER=$1
+# SERVER VALUE
+
+# PA1
+# qisnas02
+# nas02
+
+# PA2
+# qisnas01
+# nas03
+
+# ITR
+# nas01
+
+if [[ $STATUS -eq 0 ]]; then
+ echo $STATUS_OK
+  exit $STATUS_OK
+fi
+
+if [[ $STATUS -eq 1 ]]; then
+echo $STATUS_WARNING
+  exit $STATUS_WARNING
+fi
+
+if [[ $STATUS -eq 2 ]]; then
+echo $STATUS_CRITICAL
+  exit $STATUS_CRITICAL
+fi
+
+if [[ $STATUS -eq 3 ]]; then
+echo $STATUS_UNKNOWN
+  exit $STATUS_UNKNOWN
+fi

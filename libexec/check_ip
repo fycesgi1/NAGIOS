@@ -1,0 +1,50 @@
+#!/bin/bash
+
+####################
+#  \ \  / / | | / /
+#   \ \/ /  | |/ /
+#    \  /   | |\ \
+#    / /    | | \ \
+#   /_/     |_|  \_\
+####################
+
+STATUS_OK="0"
+STATUS_WARNING="1"
+STATUS_CRITICAL="2"
+STATUS_UNKNOWN="3"
+
+V1=$((seq 1 255) >> /tmp/T1.txt)
+
+V2=$((grep 192.168.1 /etc/dhcp/dhcpd.conf | grep fixed | awk '{print $2}' | sed 's@^.*192.168.1.@@;s@;.*@@g' | sort -n) >> /tmp/T1.txt)
+
+V3=$((sort -n /tmp/T1.txt | uniq -u) >> /tmp/T2.txt)
+
+V4=$(wc -l /tmp/T2.txt | awk '{print $1}')
+
+if [[ $V4 -lt 3 ]];then
+        STATE="CRITICAL"
+
+elif [[ $V4 -lt 5 ]];then
+        STATE="WARNING"
+
+elif [[ $V4 -gt 5  ]];then
+	STATE="OK"
+else
+        STATE="UNKNOWN"
+fi
+
+echo ""$STATE", Il y a "$V4" IP de libres"
+
+if [ ${STATE} == "CRITICAL" ];then
+                        exit ${STATUS_CRITICAL}
+        elif [ ${STATE} == "WARNING" ];then
+                        exit ${STATUS_WARNING}
+        elif [ ${STATE} == "OK" ];then
+                        exit ${STATUS_OK}
+        else
+                        exit ${STATUS_UNKNOWN}
+fi
+
+rm -f /tmp/T1.txt
+rm -f /tmp/T2.txt
+

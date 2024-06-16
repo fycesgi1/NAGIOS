@@ -1,0 +1,102 @@
+#!/bin/bash
+work_dir=/u/prog/nagios/libexec/
+awk=/usr/bin/awk
+hpacucli="sudo /usr/sbin/hpacucli ctrl all show config" 
+user=noroot
+
+exit_code=0
+##################################################
+#############################################
+print_help() {
+        echo ""
+        echo "Usage: $PROGNAME --help"
+	echo "Usage: $PROGNAME -H host -u user  "
+        echo ""
+        echo "Plugin to check disk array status on HP machines "
+	echo ""
+	echo "PARAMETERS:"
+	echo "-> host: is the host to be checked - hostname or IP (best practice is IP)"
+        echo "-> user is the user we are using to connect, on the remote server"
+	echo "NOTE: you must exchange SSH key between the user running nagios no this host (usually user is called nagios) and the target machine AND you should grant sudo permissions to that user."
+	echo "Eg for user nagios: nagios ALL=(ALL)        NOPASSWD:/usr/sbin/hpacucli ctrl all show config"
+        echo "And, if is the case, comment out - Defaults    requiretty"
+}
+##################################################
+##############################################
+
+#parameters check
+while test -n "$1"; do
+   case "$1" in
+        --help)
+            print_help
+            exit 2
+            ;;
+
+        -H)
+            host=$2
+            shift
+            ;;
+        -u)
+            user=$2
+            shift
+            ;;
+        *)
+            echo "Unknown argument: $1"
+            print_help
+            exit 2
+            ;;
+    esac
+    shift
+done 
+
+report=/tmp/report_hpacucli_$host.txt
+previous_report=/tmp/report_hpacucli_$host.txt.previous
+
+
+
+if  [[ "$host" == "0" || $user == "noroot"  ]]
+then
+	echo parameters not set!
+	print_help
+	exit
+fi
+
+#ssh $user@$host $hpacucli > $report
+$hpacucli > $report
+
+if [ $? -eq 1 ]
+then 
+	echo SSH exits abnormally
+	more $report
+	exit $(tail -1 $previous_report)
+fi
+
+if [ ! -e $previous_report ]
+then
+cp $report $previous_report
+fi
+
+
+result=`egrep -i "(fail|error|offline|rebuild|ignoring|degraded|skipping|nok)" $report`
+if [  $? -eq 0 ]
+then 
+	echo "$result" 
+        echo 2 >> $report
+	cp $report $previous_report
+	exit 2
+else	
+	echo No probs detected!
+	echo 0 >> $report
+        cp $report $previous_report
+	exit 0
+fi
+
+
+exit 0
+
+		#NAGIOSEXIT
+		#exit codes (service status)
+		#0=OK
+		#1=warning
+		#2=critical
+

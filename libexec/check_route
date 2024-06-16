@@ -1,0 +1,36 @@
+#!/bin/bash
+################################################################
+# Written by Berthalon Maxime mberthalon@kapiasolutions.com    #
+# Created: 2019-02-05   (version 1.0)                          #
+###############################################################
+
+STATUS_OK="0"
+STATUS_WARNING="1"
+STATUS_CRITICAL="2"
+STATUS_UNKNOWN="3"
+
+if [ -f /u/prog/nagios/etc/check_route.log ];then
+        CHECK_ROUTE=READY
+else
+        route -n | grep -v Metric | grep -v IP > /u/prog/nagios/etc/check_route.log
+
+fi
+
+if [ "$(echo $(route -n | grep -v Metric | grep -v IP |  diff /u/prog/nagios/etc/check_route.log - 2>&1 >/dev/null ; echo $? ))" = "0" ];then
+        STATE=OK
+elif [ "$(echo $(route -n | grep -v Metric | grep -v IP |  diff /u/prog/nagios/etc/check_route.log - 2>&1 >/dev/null ; echo $? ))" = "1" ];then
+        STATE=CRITICAL
+else
+        STATE=UNKNOWN
+fi
+
+OUTPUT=$(echo "Route du serveur $(hostname -f)" -- $STATE)
+
+echo $OUTPUT
+
+
+[[ "$STATE" == "CRITICAL" ]] && { exit $STATUS_CRITICAL ; }
+[[ "$STATE" == "WARNING" ]] && { exit $STATUS_WARNING ; }
+[[ "$STATE" == "OK" ]] && { exit $OK ; }
+[[ "$STATE" == "UNKNOWN" ]] && { exit $STATUS_UNKNOWN ; }
+[[ -z "$STATE" ]] && { exit $STATUS_UNKNOWN ; }
